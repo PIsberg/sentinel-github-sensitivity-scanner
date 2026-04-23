@@ -17,7 +17,7 @@ export default function Header() {
                         <div className="bg-blue-600 text-white p-1.5 rounded-lg">
                             <ShieldAlert size={20} />
                         </div>
-                        GitHub Sentinel
+                        Git Sentinel
                     </Link>
 
                     <nav className="flex gap-1">

@@ -17,8 +17,8 @@ import { ConfigProvider } from "@/contexts/ConfigContext";
 import Header from "@/components/Header";
 
 export const metadata: Metadata = {
-  title: "GitHub Sensitive Data Scanner",
-  description: "Scan GitHub repositories for secrets and sensitive data",
+  title: "Git Sentinel — Multi-Provider Secret Scanner",
+  description: "Scan GitHub, GitLab, Bitbucket, and Gitea repositories for secrets and sensitive data",
 };
 
 export default function RootLayout({

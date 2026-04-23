@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useScanner } from "@/hooks/useScanner";
 import { useRules } from "@/contexts/RulesContext";
-import { Search, Loader2, AlertTriangle, FileText, Github, CheckCircle, XCircle } from "lucide-react";
+import { Search, Loader2, AlertTriangle, FileText, Globe, CheckCircle, XCircle } from "lucide-react";
 
 export default function Scanner() {
     const { rules } = useRules();
@@ -32,17 +32,17 @@ export default function Scanner() {
                 <div className="p-8 text-center bg-gradient-to-b from-blue-50 to-white">
                     <h1 className="text-3xl font-bold text-gray-900 mb-4">Scan for Sensitive Data</h1>
                     <p className="text-gray-600 mb-8 max-w-lg mx-auto">
-                        Enter a GitHub URL (user or repository) to scan for secrets, private keys, and credentials matching your configured rules.
+                        Enter a repository URL from GitHub, GitLab, Bitbucket, or a Gitea instance to scan for secrets and credentials matching your configured rules.
                     </p>
 
                     <form onSubmit={handleScan} className="max-w-2xl mx-auto flex gap-3">
                         <div className="relative flex-1">
-                            <Github className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                            <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                             <input
                                 type="text"
                                 value={target}
                                 onChange={(e) => setTarget(e.target.value)}
-                                placeholder="https://github.com/username or https://github.com/username/repo"
+                                placeholder="github.com/user, gitlab.com/user/repo, bitbucket.org/workspace, gitea.example.com/user"
                                 className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition text-base text-gray-900 font-medium"
                                 disabled={progress.status === 'scanning' || progress.status === 'fetching_repos' || progress.status === 'downloading'}
                             />
@@ -154,7 +154,7 @@ export default function Scanner() {
                                     <div key={idx} className="p-6 hover:bg-gray-50 transition group">
                                         <div className="flex justify-between items-start gap-4 mb-2">
                                             <div className="flex items-center gap-2 text-sm text-gray-500">
-                                                <Github size={14} />
+                                                <Globe size={14} />
                                                 <span className="font-medium text-gray-900">{result.repo}</span>
                                                 <span>/</span>
                                                 <FileText size={14} />
