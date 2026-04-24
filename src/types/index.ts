@@ -24,10 +24,26 @@ export interface Rule {
   description: string;
 }
 
+export interface CommitInfo {
+  sha: string;
+  message: string; // first line only
+  author: string;
+  date: string; // ISO 8601
+}
+
+export interface DiffFile {
+  filename: string;
+  patch: string; // unified diff text; empty string when unavailable
+}
+
 export interface ScanResult {
   repo: string;
   file: string;
   ruleId: string;
   match: string;
   line: number;
+  commitSha?: string;
+  commitMessage?: string;
+  commitAuthor?: string;
+  commitDate?: string;
 }

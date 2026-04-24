@@ -19,25 +19,40 @@ There are no automated tests in this project.
 
 ### Data flow for a scan
 
-1. User enters a GitHub username or `owner/repo` URL in `Scanner.tsx`
-2. `useScanner` hook (in `hooks/useScanner.ts`) orchestrates the scan:
-   - Calls `parseGitHubUrl` → `fetchRepositories` from `src/lib/scanner.ts` to resolve repos via Octokit
-   - Calls `downloadRepoZip` which hits the local proxy at `/api/github/zip` (Next.js route in `src/app/api/github/zip/route.ts`) — this proxy exists solely to handle GitHub's redirect-based zip downloads that browsers can't follow cross-origin
+1. User enters a URL or shorthand (`owner/repo`, `owner`) in `Scanner.tsx`
+2. `useScanner` hook (`hooks/useScanner.ts`) orchestrates the scan:
+   - Calls `detectProvider` (`src/lib/providers/index.ts`) to parse the input into a `ParsedTarget` and determine which Git provider to use
+   - Calls `getProvider(target)` to instantiate the correct `GitProvider` implementation
+   - Calls `fetchRepositories` from `src/lib/scanner.ts` via the provider to list repos
+   - Calls `downloadRepoZip` which hits the local proxy at `/api/archive/proxy` (Next.js route in `src/app/api/archive/proxy/route.ts`) — this proxy exists to handle redirect-based zip downloads that browsers can't follow cross-origin
    - Calls `extractFilesFromZip` (JSZip) to unpack, skipping binary extensions
    - Calls `scanContent` for each file — runs each enabled `Rule`'s RegExp line-by-line and collects `ScanResult` objects
 3. Results stream into state as matches are found; `abortRef` flag enables mid-scan cancellation
 
+### Provider abstraction (`src/lib/providers/`)
+
+Each Git host is a class implementing the `GitProvider` interface (`types.ts`):
+
+- `GitHubProvider` — `github.com`, uses `https://api.github.com`
+- `GitLabProvider` — `gitlab.com` or self-hosted `.gitlab.com` subdomains
+- `BitbucketProvider` — `bitbucket.org`
+- `GiteaProvider` — any other host (self-hosted); requires `baseUrl`
+
+`detectProvider(url, giteaBaseUrl?)` in `index.ts` parses raw input into a `ParsedTarget` (bare `owner` or `owner/repo` shorthands default to GitHub). `getProvider(target)` instantiates the right class.
+
 ### State management
 
 - **`RulesContext`** (`src/contexts/RulesContext.tsx`): persists scan rules to `localStorage` key `scanner_rules`. Seeded with 4 default rules (AWS key, private key, generic password, Google API key) on first load.
-- **`ConfigContext`** (`src/contexts/ConfigContext.tsx`): persists the GitHub PAT to `localStorage` key `scanner_config_token`. Token is cleaned of `Bearer `/`token ` prefixes before use.
+- **`ConfigContext`** (`src/contexts/ConfigContext.tsx`): persists per-provider PATs under `localStorage` key `scanner_tokens` (a `ProviderTokens` object). Migrates from the legacy single-token key `scanner_config_token` on first load. Also stores `giteaBaseUrl` under `scanner_gitea_base_url`. Tokens are cleaned of `Bearer `/`token ` prefixes by `cleanToken` in `src/lib/providers/utils.ts`.
 - Both contexts are provided at the root layout level.
 
 ### Key types (`src/types/index.ts`)
 
 - `Rule` — `{ id, name, pattern (RegExp string), severity, description }`
 - `ScanResult` — `{ repo, file, ruleId, match (truncated to 50 chars), line }`
+- `ParsedTarget` — `{ provider: GitProviderType, owner, repo?, baseUrl? }`
+- `ProviderTokens` — `{ github, gitlab, bitbucket, gitea }` (all strings)
 
 ### API route
 
-`GET /api/github/zip?owner=&repo=&ref=` — server-side proxy that forwards the `Authorization` header and streams the zipball back to the client. Required because GitHub's zipball endpoint redirects and CORS blocks client-side redirect following.
+`GET /api/archive/proxy?url=<encoded-url>` — server-side proxy that forwards the `Authorization` header and follows redirects to stream the zipball back to the client. Only HTTPS URLs are accepted. Required because provider zipball endpoints redirect and CORS blocks client-side redirect following.

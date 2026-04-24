@@ -1,21 +1,29 @@
 import { useState, useCallback, useRef } from "react";
 import { Rule, ScanResult } from "@/types";
-import { fetchRepositories, downloadRepoZip, extractFilesFromZip, scanContent } from "@/lib/scanner";
+import { fetchRepositories, downloadRepoZip, extractFilesFromZip, scanContent, scanDiff } from "@/lib/scanner";
 import { detectProvider, getProvider } from "@/lib/providers/index";
 import { useConfig } from "@/contexts/ConfigContext";
 
+interface ScanOptions {
+  scanHistory: boolean;
+  maxCommits: number;
+}
+
 interface Progress {
-  status: 'idle' | 'fetching_repos' | 'downloading' | 'scanning' | 'complete' | 'error';
+  status: 'idle' | 'fetching_repos' | 'downloading' | 'scanning' | 'scanning_history' | 'complete' | 'error';
   currentRepo?: string;
   currentFile?: string;
+  currentCommit?: string;
   filesScanned: number;
   reposScanned: number;
   bytesScanned: number;
   totalFiles: number;
   percentage: number;
+  commitsScanned: number;
+  totalCommits: number;
 }
 
-export function useScanner(rules: Rule[]) {
+export function useScanner(rules: Rule[], scanOptions?: ScanOptions) {
   const { tokens, giteaBaseUrl } = useConfig();
   const [progress, setProgress] = useState<Progress>({
     status: 'idle',
@@ -24,6 +32,8 @@ export function useScanner(rules: Rule[]) {
     bytesScanned: 0,
     totalFiles: 0,
     percentage: 0,
+    commitsScanned: 0,
+    totalCommits: 0,
   });
   const [results, setResults] = useState<ScanResult[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +54,8 @@ export function useScanner(rules: Rule[]) {
       bytesScanned: 0,
       totalFiles: 0,
       percentage: 0,
+      commitsScanned: 0,
+      totalCommits: 0,
     });
 
     try {
@@ -97,6 +109,32 @@ export function useScanner(rules: Rule[]) {
           totalScanned++;
         }
         totalRepos++;
+
+        if (scanOptions?.scanHistory && provider.supportsHistoryScan && !abortRef.current) {
+          const maxCommits = Math.min(Math.max(1, scanOptions.maxCommits ?? 100), 500);
+          setProgress(p => ({ ...p, status: 'scanning_history', commitsScanned: 0, totalCommits: 0 }));
+          const commits = await provider.fetchCommits(repo.owner, repo.name, repo.default_branch, maxCommits, token);
+          setProgress(p => ({ ...p, totalCommits: commits.length }));
+          let commitsScanned = 0;
+          for (const commit of commits) {
+            if (abortRef.current) break;
+            setProgress(p => ({
+              ...p,
+              currentCommit: commit.sha.slice(0, 7),
+              commitsScanned,
+            }));
+            try {
+              const diffFiles = await provider.fetchCommitDiff(repo.owner, repo.name, commit.sha, token);
+              const matches = scanDiff(diffFiles, rules, repo.name, commit);
+              if (matches.length > 0) setResults(prev => [...prev, ...matches]);
+            } catch (err) {
+              console.warn(`[useScanner] Skipping commit ${commit.sha}:`, err);
+            }
+            commitsScanned++;
+            await new Promise(r => setTimeout(r, 100));
+          }
+          setProgress(p => ({ ...p, commitsScanned }));
+        }
       }
 
       if (abortRef.current) {
@@ -119,7 +157,7 @@ export function useScanner(rules: Rule[]) {
       setError(errorMessage);
       setProgress(p => ({ ...p, status: 'error' }));
     }
-  }, [rules, tokens, giteaBaseUrl]);
+  }, [rules, tokens, giteaBaseUrl, scanOptions]);
 
   return { progress, results, error, startScan, stopScan };
 }

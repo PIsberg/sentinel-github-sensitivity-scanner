@@ -3,12 +3,14 @@
 import React, { useState } from "react";
 import { useScanner } from "@/hooks/useScanner";
 import { useRules } from "@/contexts/RulesContext";
-import { Search, Loader2, AlertTriangle, FileText, Globe, CheckCircle, XCircle } from "lucide-react";
+import { AlertTriangle, FileText, Globe, CheckCircle, XCircle, GitBranch } from "lucide-react";
 
 export default function Scanner() {
     const { rules } = useRules();
-    const { progress, results, error, startScan, stopScan } = useScanner(rules);
     const [target, setTarget] = useState("");
+    const [scanHistory, setScanHistory] = useState(false);
+    const [maxCommits, setMaxCommits] = useState(100);
+    const { progress, results, error, startScan, stopScan } = useScanner(rules, { scanHistory, maxCommits });
 
     const handleScan = (e: React.FormEvent) => {
         e.preventDefault();
@@ -16,6 +18,8 @@ export default function Scanner() {
             startScan(target);
         }
     };
+
+    const isScanning = ['scanning', 'fetching_repos', 'downloading', 'scanning_history'].includes(progress.status);
 
     const getStatusColor = () => {
         switch (progress.status) {
@@ -35,6 +39,34 @@ export default function Scanner() {
                         Enter a repository URL from GitHub, GitLab, Bitbucket, or a Gitea instance to scan for secrets and credentials matching your configured rules.
                     </p>
 
+                    <div className="max-w-2xl mx-auto mb-4 flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={scanHistory}
+                                onChange={e => setScanHistory(e.target.checked)}
+                                className="w-4 h-4 rounded accent-blue-600"
+                            />
+                            Scan git history
+                        </label>
+                        {scanHistory && (
+                            <label className="flex items-center gap-2">
+                                Max commits:
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={500}
+                                    value={maxCommits}
+                                    onChange={e => setMaxCommits(Math.min(500, Math.max(1, Number(e.target.value))))}
+                                    className="w-20 px-2 py-1 rounded border border-gray-200 text-gray-900 text-sm"
+                                />
+                            </label>
+                        )}
+                        {scanHistory && (
+                            <span className="text-amber-600 text-xs">Add a token in Admin to avoid rate limits when scanning history.</span>
+                        )}
+                    </div>
+
                     <form onSubmit={handleScan} className="max-w-2xl mx-auto flex gap-3">
                         <div className="relative flex-1">
                             <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -44,18 +76,18 @@ export default function Scanner() {
                                 onChange={(e) => setTarget(e.target.value)}
                                 placeholder="github.com/user, gitlab.com/user/repo, bitbucket.org/workspace, gitea.example.com/user"
                                 className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition text-base text-gray-900 font-medium"
-                                disabled={progress.status === 'scanning' || progress.status === 'fetching_repos' || progress.status === 'downloading'}
+                                disabled={isScanning}
                             />
                         </div>
                         <button
                             type="submit"
-                            disabled={progress.status === 'scanning' || progress.status === 'fetching_repos' || progress.status === 'downloading' || !target}
-                            className={`px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl font-bold transition flex items-center gap-2 ${progress.status === 'scanning' || progress.status === 'fetching_repos' || progress.status === 'downloading' ? 'hidden' : ''}`}
+                            disabled={isScanning || !target}
+                            className={`px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-xl font-bold transition flex items-center gap-2 ${isScanning ? 'hidden' : ''}`}
                         >
                             Scan Now
                         </button>
 
-                        {(progress.status === 'scanning' || progress.status === 'fetching_repos' || progress.status === 'downloading') && (
+                        {isScanning && (
                             <button
                                 type="button"
                                 onClick={stopScan}
@@ -77,38 +109,58 @@ export default function Scanner() {
             </div>
 
             {/* Progress Section */}
-            {(progress.status === 'scanning' || progress.status === 'fetching_repos' || progress.status === 'downloading') && (
+            {isScanning && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="flex justify-between items-center mb-4">
                         <div>
                             <h3 className="font-semibold text-gray-900">
-                                {progress.status === 'downloading' ? 'Downloading repository...' : 'Scanning in progress...'}
+                                {progress.status === 'scanning_history' ? 'Scanning commit history...' :
+                                 progress.status === 'downloading' ? 'Downloading repository...' :
+                                 'Scanning in progress...'}
                             </h3>
                             <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
                                 {progress.status === 'fetching_repos' ? 'Fetching repositories...' :
-                                    progress.status === 'downloading' ? 'Downloading archive (this is fast)...' : (
-                                        <>
-                                            <span className="font-mono bg-gray-100 px-1 rounded text-gray-700">{progress.currentFile || 'Initializing...'}</span>
-                                        </>
-                                    )}
+                                 progress.status === 'downloading' ? 'Downloading archive (this is fast)...' :
+                                 progress.status === 'scanning_history' ? (
+                                     <>Commit <span className="font-mono bg-gray-100 px-1 rounded text-gray-700">{progress.currentCommit ?? '...'}</span> ({progress.commitsScanned} of {progress.totalCommits})</>
+                                 ) : (
+                                     <span className="font-mono bg-gray-100 px-1 rounded text-gray-700">{progress.currentFile || 'Initializing...'}</span>
+                                 )}
                             </p>
                         </div>
                         <div className="text-right">
-                            <div className="text-2xl font-bold text-blue-600">{progress.filesScanned}</div>
-                            <div className="text-xs text-gray-500 uppercase tracking-wide">Files Scanned</div>
+                            {progress.status === 'scanning_history' ? (
+                                <>
+                                    <div className="text-2xl font-bold text-amber-600">{progress.commitsScanned}</div>
+                                    <div className="text-xs text-gray-500 uppercase tracking-wide">Commits Scanned</div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-2xl font-bold text-blue-600">{progress.filesScanned}</div>
+                                    <div className="text-xs text-gray-500 uppercase tracking-wide">Files Scanned</div>
+                                </>
+                            )}
                         </div>
                     </div>
 
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-blue-600 rounded-full transition-all duration-300 relative overflow-hidden"
-                            style={{ width: '100%' }} // Infinite loading bar for now as we don't assume total
+                            className={`h-full rounded-full transition-all duration-300 relative overflow-hidden ${progress.status === 'scanning_history' ? 'bg-amber-500' : 'bg-blue-600'}`}
+                            style={
+                                progress.status === 'scanning_history' && progress.totalCommits > 0
+                                    ? { width: `${Math.round((progress.commitsScanned / progress.totalCommits) * 100)}%` }
+                                    : { width: '100%' }
+                            }
                         >
-                            <div className="absolute inset-0 bg-white/30 animate-[shimmer_2s_infinite]"></div>
+                            {!(progress.status === 'scanning_history' && progress.totalCommits > 0) && (
+                                <div className="absolute inset-0 bg-white/30 animate-[shimmer_2s_infinite]"></div>
+                            )}
                         </div>
                     </div>
                     <p className="text-xs text-gray-400 mt-2 text-center">
-                        Scanning {progress.currentRepo ? `repository: ${progress.currentRepo}` : 'targets...'}
+                        {progress.status === 'scanning_history'
+                            ? `Repository: ${progress.currentRepo}`
+                            : `Scanning ${progress.currentRepo ? `repository: ${progress.currentRepo}` : 'targets...'}`}
                     </p>
                 </div>
             )}
@@ -127,6 +179,14 @@ export default function Scanner() {
                                 <div>
                                     <span className="font-semibold text-gray-900">{progress.filesScanned}</span> Files
                                 </div>
+                                {progress.commitsScanned > 0 && (
+                                    <>
+                                        <div className="w-px bg-gray-200"></div>
+                                        <div>
+                                            <span className="font-semibold text-amber-600">{progress.commitsScanned}</span> Commits
+                                        </div>
+                                    </>
+                                )}
                                 <div className="w-px bg-gray-200"></div>
                                 <div>
                                     <span className="font-semibold text-gray-900">{(progress.bytesScanned / 1024).toFixed(1)}</span> KB
@@ -165,6 +225,19 @@ export default function Scanner() {
                                                 {result.ruleId}
                                             </span>
                                         </div>
+
+                                        {result.commitSha && (
+                                            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-1.5 mb-2">
+                                                <GitBranch size={12} />
+                                                <span className="font-mono">{result.commitSha.slice(0, 7)}</span>
+                                                <span>·</span>
+                                                <span className="truncate max-w-xs">{result.commitMessage}</span>
+                                                <span>·</span>
+                                                <span>{result.commitAuthor}</span>
+                                                <span>·</span>
+                                                <span>{result.commitDate ? new Date(result.commitDate).toLocaleDateString() : ''}</span>
+                                            </div>
+                                        )}
 
                                         <div className="bg-gray-900 rounded-lg p-3 font-mono text-sm text-gray-300 overflow-x-auto relative group-hover:shadow-lg transition-shadow">
                                             <div className="absolute top-0 right-0 px-2 py-1 text-xs text-gray-500 bg-gray-800 rounded-bl-lg">Match</div>

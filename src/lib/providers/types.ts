@@ -1,3 +1,5 @@
+import { CommitInfo, DiffFile } from '@/types';
+
 export interface RepoInfo {
   name: string;
   owner: string;
@@ -6,6 +8,7 @@ export interface RepoInfo {
 
 export interface GitProvider {
   readonly name: string;
+  readonly supportsHistoryScan: boolean;
   fetchRepositories(
     owner: string,
     repo: string | undefined,
@@ -13,4 +16,17 @@ export interface GitProvider {
   ): Promise<RepoInfo[]>;
   getArchiveUrl(owner: string, repo: string, ref: string): string;
   buildAuthHeader(token: string | undefined): string;
+  fetchCommits(
+    owner: string,
+    repo: string,
+    branch: string,
+    maxCommits: number,
+    token: string | undefined
+  ): Promise<CommitInfo[]>;
+  fetchCommitDiff(
+    owner: string,
+    repo: string,
+    sha: string,
+    token: string | undefined
+  ): Promise<DiffFile[]>;
 }

@@ -1,8 +1,10 @@
+import { CommitInfo, DiffFile } from '@/types';
 import { GitProvider, RepoInfo } from './types';
 import { cleanToken } from './utils';
 
 export class GitLabProvider implements GitProvider {
   readonly name = 'GitLab';
+  readonly supportsHistoryScan = true;
   private readonly baseUrl: string;
 
   constructor(baseUrl = 'https://gitlab.com') {
@@ -44,6 +46,47 @@ export class GitLabProvider implements GitProvider {
   getArchiveUrl(owner: string, repo: string, ref: string): string {
     const encoded = encodeURIComponent(`${owner}/${repo}`);
     return `${this.baseUrl}/api/v4/projects/${encoded}/repository/archive.zip?sha=${ref}`;
+  }
+
+  async fetchCommits(owner: string, repo: string, branch: string, maxCommits: number, token?: string): Promise<CommitInfo[]> {
+    const headers = this.makeHeaders(token);
+    const encoded = encodeURIComponent(`${owner}/${repo}`);
+    const commits: CommitInfo[] = [];
+    let page = 1;
+    while (commits.length < maxCommits) {
+      const remaining = maxCommits - commits.length;
+      const perPage = Math.min(100, remaining);
+      const res = await fetch(
+        `${this.baseUrl}/api/v4/projects/${encoded}/repository/commits?ref_name=${branch}&per_page=${perPage}&page=${page}`,
+        { headers }
+      );
+      if (!res.ok) throw new Error(`GitLab: failed to fetch commits (${res.status})`);
+      const data = await res.json();
+      if (!data.length) break;
+      for (const c of data) {
+        commits.push({
+          sha: c.id,
+          message: (c.title as string).split('\n')[0],
+          author: c.author_name ?? 'unknown',
+          date: c.authored_date ?? '',
+        });
+      }
+      if (data.length < perPage) break;
+      page++;
+    }
+    return commits;
+  }
+
+  async fetchCommitDiff(owner: string, repo: string, sha: string, token?: string): Promise<DiffFile[]> {
+    const headers = this.makeHeaders(token);
+    const encoded = encodeURIComponent(`${owner}/${repo}`);
+    const res = await fetch(
+      `${this.baseUrl}/api/v4/projects/${encoded}/repository/commits/${sha}/diff`,
+      { headers }
+    );
+    if (!res.ok) throw new Error(`GitLab: failed to fetch diff for ${sha} (${res.status})`);
+    const data = await res.json();
+    return (data as any[]).map(f => ({ filename: f.new_path as string, patch: f.diff as string }));
   }
 
   private makeHeaders(token?: string): HeadersInit {

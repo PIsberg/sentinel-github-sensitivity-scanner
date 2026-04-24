@@ -1,4 +1,4 @@
-import { Rule, ScanResult, ParsedTarget } from "@/types";
+import { Rule, ScanResult, ParsedTarget, CommitInfo, DiffFile } from "@/types";
 import { GitProvider } from "@/lib/providers/types";
 import JSZip from "jszip";
 
@@ -54,6 +54,57 @@ export async function extractFilesFromZip(zipData: ArrayBuffer): Promise<Extract
     }
   }
   return files;
+}
+
+export function extractAddedLines(patch: string): Array<{ line: number; text: string }> {
+  const result: Array<{ line: number; text: string }> = [];
+  let newLineNum = 0;
+  for (const raw of patch.split('\n')) {
+    const hunk = raw.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      newLineNum = parseInt(hunk[1], 10) - 1;
+      continue;
+    }
+    if (raw.startsWith('+') && !raw.startsWith('+++')) {
+      newLineNum++;
+      result.push({ line: newLineNum, text: raw.slice(1) });
+    } else if (!raw.startsWith('-')) {
+      newLineNum++;
+    }
+  }
+  return result;
+}
+
+export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, commit: CommitInfo): ScanResult[] {
+  const results: ScanResult[] = [];
+  for (const file of diffFiles) {
+    if (!file.patch) continue;
+    const addedLines = extractAddedLines(file.patch);
+    rules.forEach(rule => {
+      try {
+        const regex = new RegExp(rule.pattern, 'g');
+        for (const { line, text } of addedLines) {
+          if (regex.test(text)) {
+            results.push({
+              repo,
+              file: file.filename,
+              ruleId: rule.name,
+              match: text.trim().substring(0, 50) + '...',
+              line,
+              commitSha: commit.sha,
+              commitMessage: commit.message,
+              commitAuthor: commit.author,
+              commitDate: commit.date,
+            });
+            regex.lastIndex = 0;
+          }
+        }
+      } catch (e) {
+        console.warn(`Invalid regex pattern for rule ${rule.name}`, e);
+      }
+    });
+  }
+  return results;
 }
 
 export function scanContent(content: string, rules: Rule[], repo: string, fileName: string): ScanResult[] {

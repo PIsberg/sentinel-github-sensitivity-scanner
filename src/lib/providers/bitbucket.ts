@@ -1,8 +1,10 @@
+import { CommitInfo, DiffFile } from '@/types';
 import { GitProvider, RepoInfo } from './types';
-import { cleanToken } from './utils';
+import { cleanToken, parseUnifiedDiff } from './utils';
 
 export class BitbucketProvider implements GitProvider {
   readonly name = 'Bitbucket';
+  readonly supportsHistoryScan = true;
   private readonly apiBase = 'https://api.bitbucket.org/2.0';
 
   buildAuthHeader(token?: string): string {
@@ -38,6 +40,36 @@ export class BitbucketProvider implements GitProvider {
 
   getArchiveUrl(owner: string, repo: string, ref: string): string {
     return `https://bitbucket.org/${owner}/${repo}/get/${ref}.zip`;
+  }
+
+  async fetchCommits(owner: string, repo: string, branch: string, maxCommits: number, token?: string): Promise<CommitInfo[]> {
+    const headers = this.makeHeaders(token);
+    const commits: CommitInfo[] = [];
+    let url: string | null = `${this.apiBase}/repositories/${owner}/${repo}/commits/${branch}?pagelen=100`;
+    while (url && commits.length < maxCommits) {
+      const res: Response = await fetch(url, { headers });
+      if (!res.ok) throw new Error(`Bitbucket: failed to fetch commits (${res.status})`);
+      const data: { values?: any[]; next?: string } = await res.json();
+      for (const c of (data.values ?? [])) {
+        if (commits.length >= maxCommits) break;
+        commits.push({
+          sha: c.hash,
+          message: (c.message as string).split('\n')[0],
+          author: c.author?.user?.display_name ?? c.author?.raw ?? 'unknown',
+          date: c.date ?? '',
+        });
+      }
+      url = data.next ?? null;
+    }
+    return commits;
+  }
+
+  async fetchCommitDiff(owner: string, repo: string, sha: string, token?: string): Promise<DiffFile[]> {
+    const headers = this.makeHeaders(token);
+    const res = await fetch(`${this.apiBase}/repositories/${owner}/${repo}/diff/${sha}`, { headers });
+    if (!res.ok) throw new Error(`Bitbucket: failed to fetch diff for ${sha} (${res.status})`);
+    const rawDiff = await res.text();
+    return parseUnifiedDiff(rawDiff);
   }
 
   private makeHeaders(token?: string): HeadersInit {

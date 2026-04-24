@@ -1,8 +1,10 @@
+import { CommitInfo, DiffFile } from '@/types';
 import { GitProvider, RepoInfo } from './types';
 import { cleanToken } from './utils';
 
 export class GiteaProvider implements GitProvider {
   readonly name = 'Gitea';
+  readonly supportsHistoryScan = false;
   private readonly baseUrl: string;
 
   constructor(baseUrl: string) {
@@ -39,6 +41,16 @@ export class GiteaProvider implements GitProvider {
 
   getArchiveUrl(owner: string, repo: string, ref: string): string {
     return `${this.baseUrl}/api/v1/repos/${owner}/${repo}/archive/${ref}.zip`;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  fetchCommits(_owner: string, _repo: string, _branch: string, _maxCommits: number, _token?: string): Promise<CommitInfo[]> {
+    throw new Error('Gitea history scan is not supported');
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  fetchCommitDiff(_owner: string, _repo: string, _sha: string, _token?: string): Promise<DiffFile[]> {
+    throw new Error('Gitea history scan is not supported');
   }
 
   private makeHeaders(token?: string): HeadersInit {
