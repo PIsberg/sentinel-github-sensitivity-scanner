@@ -1,6 +1,7 @@
 # Git Sentinel — Multi-Provider Secret Scanner
 
 [![CI](https://github.com/PIsberg/sentinel-github-sensitivity-scanner/actions/workflows/ci.yml/badge.svg)](https://github.com/PIsberg/sentinel-github-sensitivity-scanner/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A browser-based tool that scans Git repositories for secrets and sensitive data using configurable RegEx rules. Supports GitHub, GitLab, Bitbucket, and self-hosted Gitea instances.
 
