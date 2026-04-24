@@ -144,6 +144,7 @@ export function RulesProvider({ children }: { children: React.ReactNode }) {
         const saved = localStorage.getItem('scanner_rules');
         if (saved) {
             try {
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setRules(JSON.parse(saved));
             } catch (e) {
                 console.error('Failed to parse rules, using defaults', e);

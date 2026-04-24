@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { useConfig } from '@/contexts/ConfigContext';
-import { ProviderTokens } from '@/types';
 import { Key, Save, Eye, EyeOff, CheckCircle } from 'lucide-react';
 
 interface ProviderSectionProps {

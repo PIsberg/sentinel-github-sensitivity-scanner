@@ -34,8 +34,8 @@ export class GitLabProvider implements GitProvider {
         { headers }
       );
       if (!res.ok) throw new Error(`GitLab: user ${owner} not found (${res.status})`);
-      const data = await res.json();
-      return data.map((p: any) => ({
+      const data: Array<{ path: string; namespace: { path: string }; default_branch: string }> = await res.json();
+      return data.map(p => ({
         name: p.path,
         owner: p.namespace.path,
         default_branch: p.default_branch || 'main',
@@ -85,8 +85,8 @@ export class GitLabProvider implements GitProvider {
       { headers }
     );
     if (!res.ok) throw new Error(`GitLab: failed to fetch diff for ${sha} (${res.status})`);
-    const data = await res.json();
-    return (data as any[]).map(f => ({ filename: f.new_path as string, patch: f.diff as string }));
+    const data: Array<{ new_path: string; diff: string }> = await res.json();
+    return data.map(f => ({ filename: f.new_path, patch: f.diff }));
   }
 
   private makeHeaders(token?: string): HeadersInit {

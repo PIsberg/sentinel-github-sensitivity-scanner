@@ -30,8 +30,8 @@ export class GiteaProvider implements GitProvider {
     } else {
       const res = await fetch(`${this.baseUrl}/api/v1/users/${owner}/repos?limit=50`, { headers });
       if (!res.ok) throw new Error(`Gitea: user ${owner} not found (${res.status})`);
-      const data = await res.json();
-      return data.map((r: any) => ({
+      const data: Array<{ name: string; owner: { login: string }; default_branch: string }> = await res.json();
+      return data.map(r => ({
         name: r.name,
         owner: r.owner.login,
         default_branch: r.default_branch || 'main',
@@ -43,12 +43,10 @@ export class GiteaProvider implements GitProvider {
     return `${this.baseUrl}/api/v1/repos/${owner}/${repo}/archive/${ref}.zip`;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fetchCommits(_owner: string, _repo: string, _branch: string, _maxCommits: number, _token?: string): Promise<CommitInfo[]> {
     throw new Error('Gitea history scan is not supported');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   fetchCommitDiff(_owner: string, _repo: string, _sha: string, _token?: string): Promise<DiffFile[]> {
     throw new Error('Gitea history scan is not supported');
   }

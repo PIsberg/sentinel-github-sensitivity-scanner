@@ -21,14 +21,6 @@ export default function Scanner() {
 
     const isScanning = ['scanning', 'fetching_repos', 'downloading', 'scanning_history'].includes(progress.status);
 
-    const getStatusColor = () => {
-        switch (progress.status) {
-            case 'error': return 'bg-red-50 text-red-700 border-red-200';
-            case 'complete': return 'bg-green-50 text-green-700 border-green-200';
-            default: return 'bg-blue-50 text-blue-700 border-blue-200';
-        }
-    }
-
     return (
         <div className="max-w-4xl mx-auto">
             {/* Input Section */}
