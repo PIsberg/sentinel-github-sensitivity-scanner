@@ -75,6 +75,18 @@ export function extractAddedLines(patch: string): Array<{ line: number; text: st
   return result;
 }
 
+// Converts PCRE-style inline flags like (?i) to JS RegExp flags and strips them from the pattern.
+function buildRegex(pattern: string, baseFlags: string): RegExp {
+  let flags = baseFlags;
+  const cleaned = pattern.replace(/\(\?([ims]+)\)/g, (_, f: string) => {
+    for (const c of f) {
+      if (!flags.includes(c)) flags += c;
+    }
+    return '';
+  });
+  return new RegExp(cleaned, flags);
+}
+
 export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, commit: CommitInfo): ScanResult[] {
   const results: ScanResult[] = [];
   for (const file of diffFiles) {
@@ -82,7 +94,7 @@ export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, com
     const addedLines = extractAddedLines(file.patch);
     rules.forEach(rule => {
       try {
-        const regex = new RegExp(rule.pattern, 'g');
+        const regex = buildRegex(rule.pattern, 'g');
         for (const { line, text } of addedLines) {
           if (regex.test(text)) {
             results.push({
