@@ -30,6 +30,7 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
       parsed.github = legacy;
       localStorage.removeItem('scanner_config_token');
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTokensState(parsed);
 
     const savedBase = localStorage.getItem('scanner_gitea_base_url');

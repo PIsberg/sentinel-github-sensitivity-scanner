@@ -30,7 +30,8 @@ export class BitbucketProvider implements GitProvider {
       const res = await fetch(`${this.apiBase}/repositories/${owner}?pagelen=100`, { headers });
       if (!res.ok) throw new Error(`Bitbucket: workspace ${owner} not found (${res.status})`);
       const data = await res.json();
-      return (data.values || []).map((r: any) => ({
+      type BBRepo = { slug: string; workspace: { slug: string }; mainbranch?: { name: string } };
+      return ((data as { values?: BBRepo[] }).values || []).map(r => ({
         name: r.slug,
         owner: r.workspace.slug,
         default_branch: r.mainbranch?.name || 'main',
@@ -49,7 +50,8 @@ export class BitbucketProvider implements GitProvider {
     while (url && commits.length < maxCommits) {
       const res: Response = await fetch(url, { headers });
       if (!res.ok) throw new Error(`Bitbucket: failed to fetch commits (${res.status})`);
-      const data: { values?: any[]; next?: string } = await res.json();
+      type BBCommit = { hash: string; message: string; author?: { user?: { display_name?: string }; raw?: string }; date?: string };
+      const data: { values?: BBCommit[]; next?: string } = await res.json();
       for (const c of (data.values ?? [])) {
         if (commits.length >= maxCommits) break;
         commits.push({

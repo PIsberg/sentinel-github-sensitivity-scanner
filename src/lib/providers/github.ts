@@ -25,8 +25,8 @@ export class GitHubProvider implements GitProvider {
         { headers }
       );
       if (!res.ok) throw new Error(`GitHub: user ${owner} not found (${res.status})`);
-      const data = await res.json();
-      return data.map((r: any) => ({
+      const data: Array<{ name: string; owner: { login: string }; default_branch: string }> = await res.json();
+      return data.map(r => ({
         name: r.name,
         owner: r.owner.login,
         default_branch: r.default_branch || 'main',
@@ -71,9 +71,10 @@ export class GitHubProvider implements GitProvider {
     const res = await fetch(`${this.baseUrl}/repos/${owner}/${repo}/commits/${sha}`, { headers });
     if (!res.ok) throw new Error(`GitHub: failed to fetch commit ${sha} (${res.status})`);
     const data = await res.json();
-    return (data.files ?? [])
-      .filter((f: any) => f.patch)
-      .map((f: any) => ({ filename: f.filename as string, patch: f.patch as string }));
+    type GHFile = { filename: string; patch?: string };
+    return ((data as { files?: GHFile[] }).files ?? [])
+      .filter((f): f is Required<GHFile> => !!f.patch)
+      .map(f => ({ filename: f.filename, patch: f.patch }));
   }
 
   private makeHeaders(token?: string): HeadersInit {

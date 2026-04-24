@@ -20,6 +20,7 @@ export default function RuleEditor({ initialRule, onSave, onCancel }: RuleEditor
 
     useEffect(() => {
         if (initialRule) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setFormData({
                 name: initialRule.name,
                 pattern: initialRule.pattern,

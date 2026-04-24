@@ -5,7 +5,7 @@ import { GitLabProvider } from './gitlab';
 import { BitbucketProvider } from './bitbucket';
 import { GiteaProvider } from './gitea';
 
-export function detectProvider(url: string, giteaBaseUrl?: string): ParsedTarget | null {
+export function detectProvider(url: string, _giteaBaseUrl?: string): ParsedTarget | null {
   const cleaned = url.trim().replace(/\/$/, '').replace(/\.git$/, '');
 
   let parsed: URL;
