@@ -9,7 +9,8 @@ A browser-based tool that scans Git repositories for secrets and sensitive data 
 
 - **Multi-provider support** — GitHub, GitLab, Bitbucket, and any Gitea instance
 - **Git history scanning** — optionally scan commit diffs in addition to the latest source
-- **16 built-in rules** — AWS keys, private keys, OpenAI/Anthropic/Google API keys, GitHub/GitLab PATs, Stripe, Slack, SendGrid, npm tokens, and more
+- **36 built-in rules** — cloud keys (AWS incl. STS, Azure storage, GCP service accounts), private keys, AI provider keys (OpenAI, Anthropic, Google, Groq, xAI, OpenRouter, Hugging Face, Replicate), VCS tokens (GitHub, GitLab), payment/comms (Stripe, Twilio, Slack, Discord, SendGrid, Mailgun, Telegram), registries (npm, PyPI, Docker Hub), DB connection strings, JWTs, and generic api_key/secret patterns
+- **Placeholder allowlist** — documented dummies (`AKIA…EXAMPLE`, `YOUR_API_KEY`, `xxxx`, …) are ignored to cut false positives
 - **Custom rules** — add, edit, delete, import, and export your own RegEx patterns
 - **Real-time progress** — live file/commit counter and progress bar
 - **Stop at any time** — cancel a running scan mid-way
@@ -26,12 +27,16 @@ npm run lint     # ESLint
 
 ## Running tests
 
-[Playwright](https://playwright.dev) E2E tests cover the Scanner page, Admin page, and navigation. All network calls are mocked so no credentials or internet access are required.
+Two layers:
+
+- **[Vitest](https://vitest.dev) unit tests** (`src/**/*.test.ts`) cover the pure logic — scanner regex/diff parsing, provider URL & auth building, input detection, and the proxy SSRF guard. No browser or network required.
+- **[Playwright](https://playwright.dev) E2E tests** (`e2e/`) drive the Scanner page, Admin page, and navigation against mocked APIs, so no credentials or internet access are required.
 
 ```bash
-npm test              # run all 38 tests (headless Chromium)
-npm run test:headed   # run with a visible browser window
-npm run test:ui       # open the interactive Playwright UI
+npm run test:unit     # Vitest unit tests
+npm test              # Playwright E2E tests (headless Chromium)
+npm run test:headed   # Playwright with a visible browser window
+npm run test:ui       # interactive Playwright UI
 npm run test:report   # open the last HTML report
 ```
 
@@ -60,6 +65,11 @@ Optionally check **Scan git history** to also scan commit diffs (set a max commi
 ### 3. Review results
 
 Matches are listed with the repository name, file path, line number, and the matched text. When history scanning is enabled, the commit SHA, message, author, and date are also shown.
+
+## Security
+
+- **Tokens stay local** — provider tokens are stored in your browser's `localStorage` and are only ever sent to the matching Git provider's API.
+- **Hardened archive proxy** — the one server-side route (`/api/archive/proxy`, needed because zipball endpoints redirect and browsers can't follow those cross-origin) is protected against SSRF: it accepts HTTPS only, blocks targets that resolve to private/loopback/link-local/reserved IP ranges (including the cloud metadata endpoint and DNS-rebinding) on the initial request and every redirect hop, bounds redirects, and drops the `Authorization` header when a redirect leaves the original host. See `src/lib/security/ssrf.ts`.
 
 ## Provider tokens
 
@@ -97,4 +107,4 @@ Generate a token under **Settings › Applications** on your Gitea instance. Set
 | Styling | Tailwind CSS v4 |
 | Icons | Lucide React |
 | ZIP extraction | JSZip |
-| Testing | Playwright |
+| Testing | Vitest (unit) + Playwright (E2E) |

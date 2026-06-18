@@ -43,11 +43,11 @@ export class GiteaProvider implements GitProvider {
     return `${this.baseUrl}/api/v1/repos/${owner}/${repo}/archive/${ref}.zip`;
   }
 
-  fetchCommits(_owner: string, _repo: string, _branch: string, _maxCommits: number, _token?: string): Promise<CommitInfo[]> {
+  async fetchCommits(_owner: string, _repo: string, _branch: string, _maxCommits: number, _token?: string): Promise<CommitInfo[]> {
     throw new Error('Gitea history scan is not supported');
   }
 
-  fetchCommitDiff(_owner: string, _repo: string, _sha: string, _token?: string): Promise<DiffFile[]> {
+  async fetchCommitDiff(_owner: string, _repo: string, _sha: string, _token?: string): Promise<DiffFile[]> {
     throw new Error('Gitea history scan is not supported');
   }
 

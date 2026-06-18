@@ -65,8 +65,9 @@ test.describe('Scanner Page', () => {
   test('completes scan and reports a finding when a secret is present', async ({ page }) => {
     await mockGitHubScan(page, {
       files: {
-        // AKIAIOSFODNN7EXAMPLE matches the default "AWS Access Key ID" rule
-        'test-repo-main/.env': 'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n',
+        // Matches the default "AWS Access Key ID" rule. Avoids the literal
+        // "EXAMPLE" so it isn't suppressed by the placeholder allowlist.
+        'test-repo-main/.env': 'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7ABCD123\n',
       },
     });
 
@@ -77,7 +78,7 @@ test.describe('Scanner Page', () => {
     // Rule ID badge appears in the result row
     await expect(page.getByText('AWS Access Key ID', { exact: true }).first()).toBeVisible();
     // The matched line is shown in the code block
-    await expect(page.getByText(/AKIAIOSFODNN7EXAMPLE/)).toBeVisible();
+    await expect(page.getByText(/AKIAIOSFODNN7ABCD123/)).toBeVisible();
   });
 
   test('shows repo / file / KB stats after a completed scan', async ({ page }) => {
