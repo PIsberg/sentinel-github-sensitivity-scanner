@@ -65,6 +65,9 @@ export function extractAddedLines(patch: string): Array<{ line: number; text: st
       newLineNum = parseInt(hunk[1], 10) - 1;
       continue;
     }
+    // "\ No newline at end of file" is a marker, not a real line — ignore it
+    // so it doesn't inflate the line numbers of the added lines that follow.
+    if (raw.startsWith('\\')) continue;
     if (raw.startsWith('+') && !raw.startsWith('+++')) {
       newLineNum++;
       result.push({ line: newLineNum, text: raw.slice(1) });
@@ -87,6 +90,13 @@ function buildRegex(pattern: string, baseFlags: string): RegExp {
   return new RegExp(cleaned, flags);
 }
 
+// Builds the short, human-readable match preview shown in results. Only appends
+// an ellipsis when the line was actually truncated.
+function formatMatch(text: string): string {
+  const trimmed = text.trim();
+  return trimmed.length > 50 ? `${trimmed.substring(0, 50)}...` : trimmed;
+}
+
 export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, commit: CommitInfo): ScanResult[] {
   const results: ScanResult[] = [];
   for (const file of diffFiles) {
@@ -101,7 +111,7 @@ export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, com
               repo,
               file: file.filename,
               ruleId: rule.name,
-              match: text.trim().substring(0, 50) + '...',
+              match: formatMatch(text),
               line,
               commitSha: commit.sha,
               commitMessage: commit.message,
@@ -125,14 +135,14 @@ export function scanContent(content: string, rules: Rule[], repo: string, fileNa
 
   rules.forEach(rule => {
     try {
-      const regex = new RegExp(rule.pattern, 'g');
+      const regex = buildRegex(rule.pattern, 'g');
       lines.forEach((line, index) => {
         if (regex.test(line)) {
           results.push({
             repo,
             file: fileName,
             ruleId: rule.name,
-            match: line.trim().substring(0, 50) + '...',
+            match: formatMatch(line),
             line: index + 1,
           });
           regex.lastIndex = 0;

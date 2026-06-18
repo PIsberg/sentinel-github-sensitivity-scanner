@@ -27,6 +27,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Unit tests
+        run: npm run test:unit
+
       # Cache Chromium binaries by Playwright version so re-installs are rare.
       - name: Cache Playwright browsers
         id: cache-playwright

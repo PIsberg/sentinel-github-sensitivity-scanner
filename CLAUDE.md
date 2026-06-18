@@ -9,9 +9,13 @@ npm install       # Install dependencies
 npm run dev       # Start dev server at http://localhost:3000
 npm run build     # Production build
 npm run lint      # Run ESLint
+npm run test:unit # Run Vitest unit tests (pure logic in src/lib)
+npm test          # Run Playwright e2e tests (requires a browser + dev server)
 ```
 
-There are no automated tests in this project.
+Two test layers: **Vitest** unit tests live next to the code as `src/**/*.test.ts` and
+cover the pure logic (scanner regex/diff parsing, provider URL/auth building, input
+detection). **Playwright** e2e specs live in `e2e/` and drive the UI against mocked APIs.
 
 ## Architecture
 

@@ -23,9 +23,14 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     // Migrate legacy single-token key
     const legacy = localStorage.getItem('scanner_config_token');
     const saved = localStorage.getItem('scanner_tokens');
-    const parsed: ProviderTokens = saved
-      ? { ...EMPTY_TOKENS, ...JSON.parse(saved) }
-      : { ...EMPTY_TOKENS };
+    let parsed: ProviderTokens = { ...EMPTY_TOKENS };
+    if (saved) {
+      try {
+        parsed = { ...EMPTY_TOKENS, ...JSON.parse(saved) };
+      } catch (e) {
+        console.error('Failed to parse saved tokens, starting empty', e);
+      }
+    }
     if (legacy && !parsed.github) {
       parsed.github = legacy;
       localStorage.removeItem('scanner_config_token');
