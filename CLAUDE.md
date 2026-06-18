@@ -53,10 +53,18 @@ Each Git host is a class implementing the `GitProvider` interface (`types.ts`):
 ### Key types (`src/types/index.ts`)
 
 - `Rule` — `{ id, name, pattern (RegExp string), severity, description }`
-- `ScanResult` — `{ repo, file, ruleId, match (truncated to 50 chars), line }`
+- `ScanResult` — `{ repo, file, ruleId, match (line preview, truncated past 50 chars), line, + optional commit* fields for history scans }`
 - `ParsedTarget` — `{ provider: GitProviderType, owner, repo?, baseUrl? }`
 - `ProviderTokens` — `{ github, gitlab, bitbucket, gitea }` (all strings)
 
 ### API route
 
-`GET /api/archive/proxy?url=<encoded-url>` — server-side proxy that forwards the `Authorization` header and follows redirects to stream the zipball back to the client. Only HTTPS URLs are accepted. Required because provider zipball endpoints redirect and CORS blocks client-side redirect following.
+`GET /api/archive/proxy?url=<encoded-url>` — server-side proxy that forwards the `Authorization` header and follows redirects to stream the zipball back to the client. Required because provider zipball endpoints redirect and CORS blocks client-side redirect following.
+
+The proxy is an SSRF-sensitive surface (it fetches a caller-supplied URL with the caller's token), so request handling lives in `src/lib/security/ssrf.ts` and applies, on the initial URL **and every redirect hop**:
+
+- HTTPS only.
+- Rejects internal hostnames (`localhost`, `*.local`, `*.internal`) and any host that resolves (via DNS) to a private / loopback / link-local / reserved IP range — covering DNS-rebinding and the cloud metadata endpoint (`169.254.169.254`). Decimal/octal/hex IPv4 literals are normalised by the URL parser and caught too.
+- Bounds redirects (`maxRedirects`, default 5) and **drops the `Authorization` header on cross-origin redirects** so the token only reaches the originally targeted host.
+
+`proxyFetch` and `validateProxyUrl` take injectable `fetchFn` / `lookupFn` parameters so the redirect/auth/IP logic is unit-tested in `src/lib/security/ssrf.test.ts` without network access.

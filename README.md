@@ -26,12 +26,16 @@ npm run lint     # ESLint
 
 ## Running tests
 
-[Playwright](https://playwright.dev) E2E tests cover the Scanner page, Admin page, and navigation. All network calls are mocked so no credentials or internet access are required.
+Two layers:
+
+- **[Vitest](https://vitest.dev) unit tests** (`src/**/*.test.ts`) cover the pure logic — scanner regex/diff parsing, provider URL & auth building, input detection, and the proxy SSRF guard. No browser or network required.
+- **[Playwright](https://playwright.dev) E2E tests** (`e2e/`) drive the Scanner page, Admin page, and navigation against mocked APIs, so no credentials or internet access are required.
 
 ```bash
-npm test              # run all 38 tests (headless Chromium)
-npm run test:headed   # run with a visible browser window
-npm run test:ui       # open the interactive Playwright UI
+npm run test:unit     # Vitest unit tests
+npm test              # Playwright E2E tests (headless Chromium)
+npm run test:headed   # Playwright with a visible browser window
+npm run test:ui       # interactive Playwright UI
 npm run test:report   # open the last HTML report
 ```
 
@@ -60,6 +64,11 @@ Optionally check **Scan git history** to also scan commit diffs (set a max commi
 ### 3. Review results
 
 Matches are listed with the repository name, file path, line number, and the matched text. When history scanning is enabled, the commit SHA, message, author, and date are also shown.
+
+## Security
+
+- **Tokens stay local** — provider tokens are stored in your browser's `localStorage` and are only ever sent to the matching Git provider's API.
+- **Hardened archive proxy** — the one server-side route (`/api/archive/proxy`, needed because zipball endpoints redirect and browsers can't follow those cross-origin) is protected against SSRF: it accepts HTTPS only, blocks targets that resolve to private/loopback/link-local/reserved IP ranges (including the cloud metadata endpoint and DNS-rebinding) on the initial request and every redirect hop, bounds redirects, and drops the `Authorization` header when a redirect leaves the original host. See `src/lib/security/ssrf.ts`.
 
 ## Provider tokens
 
@@ -97,4 +106,4 @@ Generate a token under **Settings › Applications** on your Gitea instance. Set
 | Styling | Tailwind CSS v4 |
 | Icons | Lucide React |
 | ZIP extraction | JSZip |
-| Testing | Playwright |
+| Testing | Vitest (unit) + Playwright (E2E) |
