@@ -9,7 +9,8 @@ A browser-based tool that scans Git repositories for secrets and sensitive data 
 
 - **Multi-provider support** — GitHub, GitLab, Bitbucket, and any Gitea instance
 - **Git history scanning** — optionally scan commit diffs in addition to the latest source
-- **16 built-in rules** — AWS keys, private keys, OpenAI/Anthropic/Google API keys, GitHub/GitLab PATs, Stripe, Slack, SendGrid, npm tokens, and more
+- **36 built-in rules** — cloud keys (AWS incl. STS, Azure storage, GCP service accounts), private keys, AI provider keys (OpenAI, Anthropic, Google, Groq, xAI, OpenRouter, Hugging Face, Replicate), VCS tokens (GitHub, GitLab), payment/comms (Stripe, Twilio, Slack, Discord, SendGrid, Mailgun, Telegram), registries (npm, PyPI, Docker Hub), DB connection strings, JWTs, and generic api_key/secret patterns
+- **Placeholder allowlist** — documented dummies (`AKIA…EXAMPLE`, `YOUR_API_KEY`, `xxxx`, …) are ignored to cut false positives
 - **Custom rules** — add, edit, delete, import, and export your own RegEx patterns
 - **Real-time progress** — live file/commit counter and progress bar
 - **Stop at any time** — cancel a running scan mid-way

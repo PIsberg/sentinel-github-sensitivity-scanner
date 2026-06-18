@@ -30,7 +30,7 @@ detection). **Playwright** e2e specs live in `e2e/` and drive the UI against moc
    - Calls `fetchRepositories` from `src/lib/scanner.ts` via the provider to list repos
    - Calls `downloadRepoZip` which hits the local proxy at `/api/archive/proxy` (Next.js route in `src/app/api/archive/proxy/route.ts`) — this proxy exists to handle redirect-based zip downloads that browsers can't follow cross-origin
    - Calls `extractFilesFromZip` (JSZip) to unpack, skipping binary extensions
-   - Calls `scanContent` for each file — runs each enabled `Rule`'s RegExp line-by-line and collects `ScanResult` objects
+   - Calls `scanContent` for each file — runs each enabled `Rule`'s RegExp line-by-line and collects `ScanResult` objects. Patterns go through `buildRegex` (supports PCRE-style `(?i)` inline flags); matches are dropped if the matched text is a known placeholder (`PLACEHOLDER_RE` in `scanner.ts`: `EXAMPLE`, `YOUR_API_KEY`, `xxxx`, …)
 3. Results stream into state as matches are found; `abortRef` flag enables mid-scan cancellation
 
 ### Provider abstraction (`src/lib/providers/`)
@@ -46,7 +46,7 @@ Each Git host is a class implementing the `GitProvider` interface (`types.ts`):
 
 ### State management
 
-- **`RulesContext`** (`src/contexts/RulesContext.tsx`): persists scan rules to `localStorage` key `scanner_rules`. Seeded with 4 default rules (AWS key, private key, generic password, Google API key) on first load.
+- **`RulesContext`** (`src/contexts/RulesContext.tsx`): persists scan rules to `localStorage` key `scanner_rules`. Seeded with the exported `DEFAULT_RULES` set (36 rules spanning cloud/AI/VCS/payment/registry/DB secrets) on first load. `DEFAULT_RULES` is exported so a unit test (`RulesContext.test.ts`) can assert every shipped pattern compiles.
 - **`ConfigContext`** (`src/contexts/ConfigContext.tsx`): persists per-provider PATs under `localStorage` key `scanner_tokens` (a `ProviderTokens` object). Migrates from the legacy single-token key `scanner_config_token` on first load. Also stores `giteaBaseUrl` under `scanner_gitea_base_url`. Tokens are cleaned of `Bearer `/`token ` prefixes by `cleanToken` in `src/lib/providers/utils.ts`.
 - Both contexts are provided at the root layout level.
 

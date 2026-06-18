@@ -12,7 +12,7 @@ const awsRule: Rule = {
 
 describe('scanContent', () => {
   it('reports a match with 1-based line number, repo, file and rule name', () => {
-    const content = 'line one\nkey = AKIAIOSFODNN7EXAMPLE\nline three';
+    const content = 'line one\nkey = AKIAIOSFODNN7ABCD123\nline three';
     const results = scanContent(content, [awsRule], 'my-repo', 'config.txt');
 
     expect(results).toHaveLength(1);
@@ -25,13 +25,13 @@ describe('scanContent', () => {
   });
 
   it('does not append an ellipsis when the matched line is short (bug fix)', () => {
-    const results = scanContent('AKIAIOSFODNN7EXAMPLE', [awsRule], 'r', 'f');
-    expect(results[0].match).toBe('AKIAIOSFODNN7EXAMPLE');
+    const results = scanContent('AKIAIOSFODNN7ABCD123', [awsRule], 'r', 'f');
+    expect(results[0].match).toBe('AKIAIOSFODNN7ABCD123');
     expect(results[0].match.endsWith('...')).toBe(false);
   });
 
   it('truncates and appends an ellipsis only when the line exceeds 50 chars', () => {
-    const long = 'AKIAIOSFODNN7EXAMPLE ' + 'x'.repeat(60);
+    const long = 'AKIAIOSFODNN7ABCD123 ' + 'a'.repeat(60);
     const results = scanContent(long, [awsRule], 'r', 'f');
     expect(results[0].match).toHaveLength(53); // 50 chars + '...'
     expect(results[0].match.endsWith('...')).toBe(true);
@@ -44,7 +44,7 @@ describe('scanContent', () => {
   });
 
   it('matches the same rule on consecutive lines (global-regex lastIndex reset)', () => {
-    const content = 'AKIAIOSFODNN7EXAMPLE\nAKIAIOSFODNN7EXAMPLE';
+    const content = 'AKIAIOSFODNN7ABCD123\nAKIAIOSFODNN7ABCD123';
     const results = scanContent(content, [awsRule], 'r', 'f');
     expect(results.map(r => r.line)).toEqual([1, 2]);
   });
@@ -116,7 +116,7 @@ describe('scanDiff', () => {
     const diff: DiffFile[] = [
       {
         filename: 'secrets.env',
-        patch: ['@@ -0,0 +1,2 @@', '+AKIAIOSFODNN7EXAMPLE', '+harmless'].join('\n'),
+        patch: ['@@ -0,0 +1,2 @@', '+AKIAIOSFODNN7ABCD123', '+harmless'].join('\n'),
       },
     ];
     const results = scanDiff(diff, [awsRule], 'repo', commit);
@@ -139,8 +139,70 @@ describe('scanDiff', () => {
 
   it('does not match secrets that only appear in removed lines', () => {
     const diff: DiffFile[] = [
-      { filename: 'f', patch: ['@@ -1 +0,0 @@', '-AKIAIOSFODNN7EXAMPLE'].join('\n') },
+      { filename: 'f', patch: ['@@ -1 +0,0 @@', '-AKIAIOSFODNN7ABCD123'].join('\n') },
     ];
     expect(scanDiff(diff, [awsRule], 'repo', commit)).toEqual([]);
   });
+});
+
+describe('placeholder allowlist', () => {
+  it('suppresses documented example/placeholder secrets', () => {
+    for (const fake of [
+      'AKIAIOSFODNN7EXAMPLE', // AWS docs placeholder
+      'AKIAXXXXXXXXXXXXXXXX',
+      'AKIA000000000000DEAD',
+    ]) {
+      expect(scanContent(fake, [awsRule], 'r', 'f'), fake).toEqual([]);
+    }
+  });
+
+  it('suppresses YOUR_API_KEY-style placeholders', () => {
+    const rule: Rule = { ...awsRule, name: 'generic', pattern: 'token=\\S+' };
+    expect(scanContent('token=YOUR_API_TOKEN', [rule], 'r', 'f')).toEqual([]);
+  });
+
+  it('still reports a real secret on a line that merely mentions "example"', () => {
+    // The word "example" is in a comment, not in the matched key itself.
+    const content = '# example config\nkey = AKIAIOSFODNN7ABCD123';
+    const results = scanContent(content, [awsRule], 'r', 'f');
+    expect(results).toHaveLength(1);
+    expect(results[0].line).toBe(2);
+  });
+});
+
+describe('new rule patterns', () => {
+  const cases: Array<{ name: string; pattern: string; hit: string; miss: string }> = [
+    {
+      name: 'GitHub ghu_ token',
+      pattern: 'gh[oprstu]_[a-zA-Z0-9]{36}',
+      hit: 'ghu_' + 'a'.repeat(36),
+      miss: 'ghz_' + 'a'.repeat(36),
+    },
+    {
+      name: 'Stripe restricted key',
+      pattern: 'rk_(?:live|test)_[0-9a-zA-Z]{24,}',
+      hit: 'rk_live_' + 'A1b2C3d4E5f6G7h8I9j0K1l2',
+      miss: 'rk_prod_' + 'A1b2C3d4E5f6G7h8I9j0K1l2',
+    },
+    {
+      name: 'Database connection string',
+      pattern: '(?:mongodb(?:\\+srv)?|postgres(?:ql)?|mysql|redis|amqp)://[^:@\\s/]+:[^@\\s/]+@',
+      hit: 'postgres://admin:s3cr3tpw@db.internal:5432/app',
+      miss: 'postgres://db.internal:5432/app',
+    },
+    {
+      name: 'Generic api_key assignment (case-insensitive)',
+      pattern: '(?i)(?:api[_-]?key|secret|token)\\s*[=:]\\s*[\'"]?[a-zA-Z0-9/+_-]{20,}',
+      hit: 'API_KEY = "aZ09bY18cX27dW36eV45"',
+      miss: 'api_key = "short"',
+    },
+  ];
+
+  for (const c of cases) {
+    it(`matches a ${c.name} and ignores a near-miss`, () => {
+      const rule: Rule = { id: 'x', name: c.name, pattern: c.pattern, severity: 'high', description: '' };
+      expect(scanContent(c.hit, [rule], 'r', 'f'), `hit: ${c.hit}`).toHaveLength(1);
+      expect(scanContent(c.miss, [rule], 'r', 'f'), `miss: ${c.miss}`).toEqual([]);
+    });
+  }
 });

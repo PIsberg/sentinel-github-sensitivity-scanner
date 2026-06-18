@@ -79,7 +79,7 @@ export function extractAddedLines(patch: string): Array<{ line: number; text: st
 }
 
 // Converts PCRE-style inline flags like (?i) to JS RegExp flags and strips them from the pattern.
-function buildRegex(pattern: string, baseFlags: string): RegExp {
+export function buildRegex(pattern: string, baseFlags: string): RegExp {
   let flags = baseFlags;
   const cleaned = pattern.replace(/\(\?([ims]+)\)/g, (_, f: string) => {
     for (const c of f) {
@@ -97,6 +97,26 @@ function formatMatch(text: string): string {
   return trimmed.length > 50 ? `${trimmed.substring(0, 50)}...` : trimmed;
 }
 
+// Documentation placeholders and test scaffolding that look like secrets but are
+// not. Tested against the *matched secret itself* (not the whole line) so a real
+// key on a line that merely mentions "example" is still reported.
+const PLACEHOLDER_RE =
+  /example|x{4,}|0{6,}|1234567890|placeholder|change[_-]?me|dummy|redacted|your[_-]?(?:api[_-]?)?(?:key|token|secret)|<[a-z0-9_ -]+>|\*{4,}/i;
+
+function isPlaceholder(matched: string): boolean {
+  return PLACEHOLDER_RE.test(matched);
+}
+
+// Runs a rule's regex against a single line and returns the matched text, or
+// null when there is no match or the match is a known placeholder. Resets
+// lastIndex so the global-flagged regex can be reused across lines.
+function matchRule(regex: RegExp, line: string): string | null {
+  regex.lastIndex = 0;
+  const m = regex.exec(line);
+  if (!m || isPlaceholder(m[0])) return null;
+  return m[0];
+}
+
 export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, commit: CommitInfo): ScanResult[] {
   const results: ScanResult[] = [];
   for (const file of diffFiles) {
@@ -106,7 +126,7 @@ export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, com
       try {
         const regex = buildRegex(rule.pattern, 'g');
         for (const { line, text } of addedLines) {
-          if (regex.test(text)) {
+          if (matchRule(regex, text)) {
             results.push({
               repo,
               file: file.filename,
@@ -118,7 +138,6 @@ export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, com
               commitAuthor: commit.author,
               commitDate: commit.date,
             });
-            regex.lastIndex = 0;
           }
         }
       } catch (e) {
@@ -137,7 +156,7 @@ export function scanContent(content: string, rules: Rule[], repo: string, fileNa
     try {
       const regex = buildRegex(rule.pattern, 'g');
       lines.forEach((line, index) => {
-        if (regex.test(line)) {
+        if (matchRule(regex, line)) {
           results.push({
             repo,
             file: fileName,
@@ -145,7 +164,6 @@ export function scanContent(content: string, rules: Rule[], repo: string, fileNa
             match: formatMatch(line),
             line: index + 1,
           });
-          regex.lastIndex = 0;
         }
       });
     } catch (e) {
