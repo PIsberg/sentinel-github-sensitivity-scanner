@@ -28,14 +28,24 @@ export class GiteaProvider implements GitProvider {
         default_branch: data.default_branch || 'main',
       }];
     } else {
-      const res = await fetch(`${this.baseUrl}/api/v1/users/${owner}/repos?limit=50`, { headers });
-      if (!res.ok) throw new Error(`Gitea: user ${owner} not found (${res.status})`);
-      const data: Array<{ name: string; owner: { login: string }; default_branch: string }> = await res.json();
-      return data.map(r => ({
-        name: r.name,
-        owner: r.owner.login,
-        default_branch: r.default_branch || 'main',
-      }));
+      const repos: RepoInfo[] = [];
+      let page = 1;
+      // Paginate: Gitea caps limit at 50 per page, so larger owners would be truncated.
+      for (;;) {
+        const res = await fetch(`${this.baseUrl}/api/v1/users/${owner}/repos?limit=50&page=${page}`, { headers });
+        if (!res.ok) throw new Error(`Gitea: user ${owner} not found (${res.status})`);
+        const data: Array<{ name: string; owner: { login: string }; default_branch: string }> = await res.json();
+        for (const r of data) {
+          repos.push({
+            name: r.name,
+            owner: r.owner.login,
+            default_branch: r.default_branch || 'main',
+          });
+        }
+        if (data.length < 50) break;
+        page++;
+      }
+      return repos;
     }
   }
 
