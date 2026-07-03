@@ -39,18 +39,39 @@ export async function downloadRepoZip(
   return response.arrayBuffer();
 }
 
-export async function extractFilesFromZip(zipData: ArrayBuffer): Promise<ExtractedFile[]> {
+// Extensions that never contain scannable text. Anything not listed is still
+// checked for binary content by sniffing for null bytes below.
+const BINARY_EXT_RE =
+  /\.(png|jpe?g|gif|ico|bmp|webp|tiff?|pdf|zip|tar|gz|bz2|xz|7z|rar|exe|dll|so|dylib|class|jar|wasm|woff2?|ttf|eot|otf|mp3|mp4|mov|avi|webm|ogg|flac)$/i;
+
+// Regex rules match single lines, so very large files (bundles, generated
+// data, disguised binaries) cost a lot of time/memory for little signal.
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MiB
+
+function looksBinary(bytes: Uint8Array): boolean {
+  // A null byte in the first 8 KiB is a reliable binary indicator.
+  return bytes.subarray(0, 8192).includes(0);
+}
+
+export async function extractFilesFromZip(
+  zipData: ArrayBuffer,
+  maxFileBytes: number = MAX_FILE_BYTES
+): Promise<ExtractedFile[]> {
   const zip = new JSZip();
   const loadedZip = await zip.loadAsync(zipData);
   const files: ExtractedFile[] = [];
+  const decoder = new TextDecoder();
 
   for (const [relativePath, fileEntry] of Object.entries(loadedZip.files)) {
     if (!fileEntry.dir) {
-      if (relativePath.match(/\.(png|jpg|jpeg|gif|ico|pdf|zip|tar|gz|exe|dll|woff|woff2|ttf|eot)$/i)) {
+      if (BINARY_EXT_RE.test(relativePath)) {
         continue;
       }
-      const content = await fileEntry.async("string");
-      files.push({ path: relativePath, content });
+      const bytes = await fileEntry.async("uint8array");
+      if (bytes.byteLength > maxFileBytes || looksBinary(bytes)) {
+        continue;
+      }
+      files.push({ path: relativePath, content: decoder.decode(bytes) });
     }
   }
   return files;

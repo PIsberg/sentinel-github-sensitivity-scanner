@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { scanContent, scanDiff, extractAddedLines } from './scanner';
+import JSZip from 'jszip';
+import { scanContent, scanDiff, extractAddedLines, extractFilesFromZip } from './scanner';
 import { Rule, CommitInfo, DiffFile } from '@/types';
 
 const awsRule: Rule = {
@@ -64,6 +65,41 @@ describe('scanContent', () => {
 
   it('returns no results when nothing matches', () => {
     expect(scanContent('clean content', [awsRule], 'r', 'f')).toEqual([]);
+  });
+});
+
+describe('extractFilesFromZip', () => {
+  async function makeZip(entries: Record<string, string | Uint8Array>): Promise<ArrayBuffer> {
+    const zip = new JSZip();
+    for (const [path, content] of Object.entries(entries)) {
+      zip.file(path, content);
+    }
+    return zip.generateAsync({ type: 'arraybuffer' });
+  }
+
+  it('extracts text files with their content', async () => {
+    const data = await makeZip({ 'repo/config.env': 'API_KEY=abc' });
+    const files = await extractFilesFromZip(data);
+    expect(files).toEqual([{ path: 'repo/config.env', content: 'API_KEY=abc' }]);
+  });
+
+  it('skips files with binary extensions', async () => {
+    const data = await makeZip({ 'a.png': 'x', 'b.jar': 'x', 'c.mp4': 'x', 'keep.txt': 'x' });
+    const files = await extractFilesFromZip(data);
+    expect(files.map(f => f.path)).toEqual(['keep.txt']);
+  });
+
+  it('skips extension-less binary files by sniffing for null bytes', async () => {
+    const binary = new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 0x00, 0x01, 0x02]);
+    const data = await makeZip({ 'somebinary': binary, 'readme': 'text' });
+    const files = await extractFilesFromZip(data);
+    expect(files.map(f => f.path)).toEqual(['readme']);
+  });
+
+  it('skips files larger than the size cap', async () => {
+    const data = await makeZip({ 'huge.txt': 'a'.repeat(100), 'small.txt': 'ok' });
+    const files = await extractFilesFromZip(data, 50);
+    expect(files.map(f => f.path)).toEqual(['small.txt']);
   });
 });
 
