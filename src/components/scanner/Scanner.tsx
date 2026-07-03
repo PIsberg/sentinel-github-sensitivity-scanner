@@ -10,7 +10,7 @@ export default function Scanner() {
     const [target, setTarget] = useState("");
     const [scanHistory, setScanHistory] = useState(false);
     const [maxCommits, setMaxCommits] = useState(100);
-    const { progress, results, error, startScan, stopScan } = useScanner(rules, { scanHistory, maxCommits });
+    const { progress, results, error, warnings, startScan, stopScan } = useScanner(rules, { scanHistory, maxCommits });
 
     const handleScan = (e: React.FormEvent) => {
         e.preventDefault();
@@ -96,6 +96,18 @@ export default function Scanner() {
                     <div className="p-4 bg-red-50 border-t border-red-100 flex items-center gap-3 text-red-700">
                         <XCircle size={20} />
                         <span className="font-medium">{error}</span>
+                    </div>
+                )}
+
+                {/* Non-fatal warnings (e.g. repos skipped mid-scan) */}
+                {warnings.length > 0 && (
+                    <div className="p-4 bg-amber-50 border-t border-amber-100 text-amber-700 text-sm">
+                        {warnings.map((warning, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <AlertTriangle size={16} className="shrink-0" />
+                                <span>{warning}</span>
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
