@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { proxyFetch } from '@/lib/security/ssrf';
+import { limitBytes } from '@/lib/security/stream';
+
+// Upper bound on how much archive data the proxy will relay for one request.
+// The URL is caller-supplied, so without a cap this endpoint could be made to
+// buffer/relay arbitrarily large responses.
+const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024; // 100 MiB
 
 export async function GET(request: NextRequest) {
   const rawUrl = request.nextUrl.searchParams.get('url');
@@ -35,11 +41,23 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const buffer = await response.arrayBuffer();
-  return new NextResponse(buffer, {
+  const contentLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > MAX_ARCHIVE_BYTES) {
+    return NextResponse.json(
+      { error: `Archive too large (limit ${MAX_ARCHIVE_BYTES} bytes)` },
+      { status: 413 }
+    );
+  }
+
+  // Stream the zip through instead of buffering it in server memory, and
+  // enforce the size cap even when the upstream sends no Content-Length.
+  const body = response.body ? limitBytes(response.body, MAX_ARCHIVE_BYTES) : null;
+  return new NextResponse(body, {
     headers: {
       'Content-Type': 'application/zip',
       'Content-Disposition': 'attachment; filename="archive.zip"',
+      // The response may be token-authorized; never let it be cached.
+      'Cache-Control': 'no-store',
     },
   });
 }
