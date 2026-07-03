@@ -10,7 +10,7 @@ export default function Scanner() {
     const [target, setTarget] = useState("");
     const [scanHistory, setScanHistory] = useState(false);
     const [maxCommits, setMaxCommits] = useState(100);
-    const { progress, results, error, startScan, stopScan } = useScanner(rules, { scanHistory, maxCommits });
+    const { progress, results, error, warnings, startScan, stopScan } = useScanner(rules, { scanHistory, maxCommits });
 
     const handleScan = (e: React.FormEvent) => {
         e.preventDefault();
@@ -20,6 +20,12 @@ export default function Scanner() {
     };
 
     const isScanning = ['scanning', 'fetching_repos', 'downloading', 'scanning_history'].includes(progress.status);
+
+    const severityColors: Record<string, string> = {
+        high: 'bg-red-100 text-red-700',
+        medium: 'bg-yellow-100 text-yellow-700',
+        low: 'bg-blue-100 text-blue-700',
+    };
 
     return (
         <div className="max-w-4xl mx-auto">
@@ -96,6 +102,18 @@ export default function Scanner() {
                     <div className="p-4 bg-red-50 border-t border-red-100 flex items-center gap-3 text-red-700">
                         <XCircle size={20} />
                         <span className="font-medium">{error}</span>
+                    </div>
+                )}
+
+                {/* Non-fatal warnings (e.g. repos skipped mid-scan) */}
+                {warnings.length > 0 && (
+                    <div className="p-4 bg-amber-50 border-t border-amber-100 text-amber-700 text-sm">
+                        {warnings.map((warning, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                                <AlertTriangle size={16} className="shrink-0" />
+                                <span>{warning}</span>
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
@@ -213,7 +231,7 @@ export default function Scanner() {
                                                 <span className="font-medium text-gray-900">{result.file}</span>
                                                 <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">Line {result.line}</span>
                                             </div>
-                                            <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded uppercase tracking-wider">
+                                            <span className={`px-2 py-1 text-xs font-bold rounded uppercase tracking-wider ${severityColors[result.severity] ?? severityColors.high}`}>
                                                 {result.ruleId}
                                             </span>
                                         </div>

@@ -37,6 +37,7 @@ export function useScanner(rules: Rule[], scanOptions?: ScanOptions) {
   });
   const [results, setResults] = useState<ScanResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const abortRef = useRef<boolean>(false);
 
   const stopScan = useCallback(() => {
@@ -46,6 +47,7 @@ export function useScanner(rules: Rule[], scanOptions?: ScanOptions) {
   const startScan = useCallback(async (targetUrl: string) => {
     setResults([]);
     setError(null);
+    setWarnings([]);
     abortRef.current = false;
     setProgress({
       status: 'fetching_repos',
@@ -79,12 +81,21 @@ export function useScanner(rules: Rule[], scanOptions?: ScanOptions) {
         console.log(`[useScanner] Processing repo: ${repo.name}`);
         setProgress(p => ({ ...p, currentRepo: repo.name, status: 'downloading' }));
 
-        const zipData = await downloadRepoZip(repo.owner, repo.name, repo.default_branch, provider, token);
-
-        if (abortRef.current) break;
-
-        console.log(`[useScanner] Zip downloaded. Extracting...`);
-        const files = await extractFilesFromZip(zipData);
+        // A single repo failing (missing branch, download error, corrupt zip)
+        // should not abort the scan of the remaining repos.
+        let zipData: ArrayBuffer;
+        let files: Awaited<ReturnType<typeof extractFilesFromZip>>;
+        try {
+          zipData = await downloadRepoZip(repo.owner, repo.name, repo.default_branch, provider, token);
+          if (abortRef.current) break;
+          console.log(`[useScanner] Zip downloaded. Extracting...`);
+          files = await extractFilesFromZip(zipData);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`[useScanner] Skipping repo ${repo.name}:`, err);
+          setWarnings(prev => [...prev, `Skipped ${repo.owner}/${repo.name}: ${message}`]);
+          continue;
+        }
         console.log(`[useScanner] Extracted ${files.length} files.`);
 
         setProgress(p => ({ ...p, status: 'scanning', totalFiles: files.length }));
@@ -113,7 +124,15 @@ export function useScanner(rules: Rule[], scanOptions?: ScanOptions) {
         if (scanOptions?.scanHistory && provider.supportsHistoryScan && !abortRef.current) {
           const maxCommits = Math.min(Math.max(1, scanOptions.maxCommits ?? 100), 500);
           setProgress(p => ({ ...p, status: 'scanning_history', commitsScanned: 0, totalCommits: 0 }));
-          const commits = await provider.fetchCommits(repo.owner, repo.name, repo.default_branch, maxCommits, token);
+          let commits;
+          try {
+            commits = await provider.fetchCommits(repo.owner, repo.name, repo.default_branch, maxCommits, token);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(`[useScanner] Skipping history scan for ${repo.name}:`, err);
+            setWarnings(prev => [...prev, `Skipped history scan for ${repo.owner}/${repo.name}: ${message}`]);
+            continue;
+          }
           setProgress(p => ({ ...p, totalCommits: commits.length }));
           let commitsScanned = 0;
           for (const commit of commits) {
@@ -159,5 +178,5 @@ export function useScanner(rules: Rule[], scanOptions?: ScanOptions) {
     }
   }, [rules, tokens, giteaBaseUrl, scanOptions]);
 
-  return { progress, results, error, startScan, stopScan };
+  return { progress, results, error, warnings, startScan, stopScan };
 }

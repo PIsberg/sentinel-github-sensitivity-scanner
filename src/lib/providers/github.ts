@@ -20,17 +20,27 @@ export class GitHubProvider implements GitProvider {
       const data = await res.json();
       return [{ name: data.name, owner: data.owner.login, default_branch: data.default_branch }];
     } else {
-      const res = await fetch(
-        `${this.baseUrl}/users/${owner}/repos?per_page=100&sort=updated`,
-        { headers }
-      );
-      if (!res.ok) throw new Error(this.userError(owner, res.status));
-      const data: Array<{ name: string; owner: { login: string }; default_branch: string }> = await res.json();
-      return data.map(r => ({
-        name: r.name,
-        owner: r.owner.login,
-        default_branch: r.default_branch || 'main',
-      }));
+      const repos: RepoInfo[] = [];
+      let page = 1;
+      // Paginate: owners with more than 100 repos would otherwise be silently truncated.
+      for (;;) {
+        const res = await fetch(
+          `${this.baseUrl}/users/${owner}/repos?per_page=100&sort=updated&page=${page}`,
+          { headers }
+        );
+        if (!res.ok) throw new Error(this.userError(owner, res.status));
+        const data: Array<{ name: string; owner: { login: string }; default_branch: string }> = await res.json();
+        for (const r of data) {
+          repos.push({
+            name: r.name,
+            owner: r.owner.login,
+            default_branch: r.default_branch || 'main',
+          });
+        }
+        if (data.length < 100) break;
+        page++;
+      }
+      return repos;
     }
   }
 

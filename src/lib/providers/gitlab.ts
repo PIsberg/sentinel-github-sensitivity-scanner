@@ -29,17 +29,27 @@ export class GitLabProvider implements GitProvider {
         default_branch: data.default_branch || 'main',
       }];
     } else {
-      const res = await fetch(
-        `${this.baseUrl}/api/v4/users/${owner}/projects?per_page=100`,
-        { headers }
-      );
-      if (!res.ok) throw new Error(`GitLab: user ${owner} not found (${res.status})`);
-      const data: Array<{ path: string; namespace: { path: string }; default_branch: string }> = await res.json();
-      return data.map(p => ({
-        name: p.path,
-        owner: p.namespace.path,
-        default_branch: p.default_branch || 'main',
-      }));
+      const repos: RepoInfo[] = [];
+      let page = 1;
+      // Paginate: owners with more than 100 projects would otherwise be silently truncated.
+      for (;;) {
+        const res = await fetch(
+          `${this.baseUrl}/api/v4/users/${owner}/projects?per_page=100&page=${page}`,
+          { headers }
+        );
+        if (!res.ok) throw new Error(`GitLab: user ${owner} not found (${res.status})`);
+        const data: Array<{ path: string; namespace: { path: string }; default_branch: string }> = await res.json();
+        for (const p of data) {
+          repos.push({
+            name: p.path,
+            owner: p.namespace.path,
+            default_branch: p.default_branch || 'main',
+          });
+        }
+        if (data.length < 100) break;
+        page++;
+      }
+      return repos;
     }
   }
 

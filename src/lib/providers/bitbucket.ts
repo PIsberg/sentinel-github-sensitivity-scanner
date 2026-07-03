@@ -27,15 +27,25 @@ export class BitbucketProvider implements GitProvider {
         default_branch: data.mainbranch?.name || 'main',
       }];
     } else {
-      const res = await fetch(`${this.apiBase}/repositories/${owner}?pagelen=100`, { headers });
-      if (!res.ok) throw new Error(`Bitbucket: workspace ${owner} not found (${res.status})`);
-      const data = await res.json();
       type BBRepo = { slug: string; workspace: { slug: string }; mainbranch?: { name: string } };
-      return ((data as { values?: BBRepo[] }).values || []).map(r => ({
-        name: r.slug,
-        owner: r.workspace.slug,
-        default_branch: r.mainbranch?.name || 'main',
-      }));
+      const repos: RepoInfo[] = [];
+      // Follow the API's next-page links: workspaces with more than 100 repos
+      // would otherwise be silently truncated.
+      let url: string | null = `${this.apiBase}/repositories/${owner}?pagelen=100`;
+      while (url) {
+        const res: Response = await fetch(url, { headers });
+        if (!res.ok) throw new Error(`Bitbucket: workspace ${owner} not found (${res.status})`);
+        const data: { values?: BBRepo[]; next?: string } = await res.json();
+        for (const r of (data.values ?? [])) {
+          repos.push({
+            name: r.slug,
+            owner: r.workspace.slug,
+            default_branch: r.mainbranch?.name || 'main',
+          });
+        }
+        url = data.next ?? null;
+      }
+      return repos;
     }
   }
 
