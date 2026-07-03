@@ -21,6 +21,12 @@ export default function Scanner() {
 
     const isScanning = ['scanning', 'fetching_repos', 'downloading', 'scanning_history'].includes(progress.status);
 
+    const severityColors: Record<string, string> = {
+        high: 'bg-red-100 text-red-700',
+        medium: 'bg-yellow-100 text-yellow-700',
+        low: 'bg-blue-100 text-blue-700',
+    };
+
     return (
         <div className="max-w-4xl mx-auto">
             {/* Input Section */}
@@ -225,7 +231,7 @@ export default function Scanner() {
                                                 <span className="font-medium text-gray-900">{result.file}</span>
                                                 <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">Line {result.line}</span>
                                             </div>
-                                            <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded uppercase tracking-wider">
+                                            <span className={`px-2 py-1 text-xs font-bold rounded uppercase tracking-wider ${severityColors[result.severity] ?? severityColors.high}`}>
                                                 {result.ruleId}
                                             </span>
                                         </div>

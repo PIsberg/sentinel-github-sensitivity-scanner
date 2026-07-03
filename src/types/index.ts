@@ -40,6 +40,7 @@ export interface ScanResult {
   repo: string;
   file: string;
   ruleId: string;
+  severity: Severity;
   match: string;
   line: number;
   commitSha?: string;

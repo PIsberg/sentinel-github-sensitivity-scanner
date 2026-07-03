@@ -20,8 +20,15 @@ describe('scanContent', () => {
       repo: 'my-repo',
       file: 'config.txt',
       ruleId: 'AWS Access Key ID', // ruleId carries the rule *name*
+      severity: 'high',
       line: 2,
     });
+  });
+
+  it('carries the rule severity into each result', () => {
+    const medium: Rule = { ...awsRule, severity: 'medium' };
+    const results = scanContent('AKIAIOSFODNN7ABCD123', [medium], 'r', 'f');
+    expect(results[0].severity).toBe('medium');
   });
 
   it('does not append an ellipsis when the matched line is short (bug fix)', () => {

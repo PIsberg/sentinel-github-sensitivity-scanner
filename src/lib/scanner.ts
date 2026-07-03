@@ -131,6 +131,7 @@ export function scanDiff(diffFiles: DiffFile[], rules: Rule[], repo: string, com
               repo,
               file: file.filename,
               ruleId: rule.name,
+              severity: rule.severity,
               match: formatMatch(text),
               line,
               commitSha: commit.sha,
@@ -161,6 +162,7 @@ export function scanContent(content: string, rules: Rule[], repo: string, fileNa
             repo,
             file: fileName,
             ruleId: rule.name,
+            severity: rule.severity,
             match: formatMatch(line),
             line: index + 1,
           });
