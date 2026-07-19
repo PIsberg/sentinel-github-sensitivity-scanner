@@ -6,14 +6,22 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
 
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -33,7 +41,7 @@ jobs:
       # Cache Chromium binaries by Playwright version so re-installs are rare.
       - name: Cache Playwright browsers
         id: cache-playwright
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -53,7 +61,7 @@ jobs:
 
       # Always upload the HTML report so failures can be inspected in the Actions UI.
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: playwright-report
